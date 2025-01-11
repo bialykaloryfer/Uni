@@ -1,0 +1,118 @@
+import random
+from itertools import combinations
+from z3 import *
+import time
+
+
+def G(n, p):
+    matrix = [[1 if (random.uniform(0, 1) <= p) else 0 for j in range(n)] for i in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            matrix[j][i] = matrix[i][j]
+
+    return matrix
+
+
+def dfs(Node, matrix, visited, n, deg=None):
+    visited[Node] = True
+    for i in range(n):
+        if matrix[Node][i] == 1:
+            if deg:
+                deg[Node] += 1
+            if not visited[i]:
+                dfs(i, matrix, visited, n, deg)
+
+
+def is_connected(n, matrix):
+    visited = [False] * n
+    dfs(0, matrix, visited, n)
+    return all(visited)
+
+def cal_degs(n, matrix):
+    visited = [False] * n
+    result = [0] * n
+    dfs(0, matrix, visited, n, result)
+    return result
+
+def cover_estimation(matrix):
+    degs = cal_degs(len(matrix), matrix)
+    vc = 0
+    while sum(degs) != 0:
+        index_max = degs.index(max(degs))
+        degs[index_max] = 0
+
+        for i in range(len(matrix)):
+            if matrix[index_max][i] == 1 and not i == index_max:
+                degs[i] -= 1
+            matrix[i][index_max] = 0
+
+        vc += 1
+    return vc
+
+def brute(matrix, k):
+    n = len(matrix)
+    vertexes = [i for i in range(n)]
+
+    def generate_k_subsets(k):
+        for subset in combinations(vertexes, k):
+            yield subset
+
+    def if_cover(subset):
+        for i in range(n):
+            for j in range(i, n):
+              if matrix[i][j] == 1 and i not in subset and j not in subset:
+                return False
+        return True
+
+    for subset in generate_k_subsets(k):
+      if if_cover(set(subset)):
+          return True
+    return False
+
+def smt_solver(matrix, k):
+    n = len(matrix)
+    solver = z3.Solver()
+
+    vertexes = [z3.Bool(v) for v in range(n)]
+
+    for i in range(n):
+      for j in range(i, n):
+        if matrix[i][j]:
+          solver.add(z3.Or(vertexes[i], vertexes[j]))
+
+    solver.add(Sum([If(v, 1, 0) for v in vertexes]) == k)
+    return solver.check() == z3.sat
+
+def times(algorithm, matrix, k):
+  start = time.time()
+  algorithm(matrix, k)
+  end = time.time()
+  return end - start
+
+def time_dif(alg1, alg2, matrix, k):
+  return 100 * times(alg1, matrix, k) / times(alg2, matrix, k)
+
+def test_generator(nr):
+  p = 0.05
+  i = 0
+  def gen():
+    nonlocal i, p
+    n = random.randint(4, 100)
+    if i > nr:
+      i = 0
+      p += 0.05
+    if p == 1:
+      return
+    A = G(n, p)
+    estimation = cover_estimation(A)
+    if estimation != 0:
+      estimation -= random.randint(0, 1)
+    
+    yield (A, estimation)
+  return gen
+
+gen = test_generator(10)
+
+for i in gen():
+  print(i[1])
+  print(time_dif(brute, smt_solver, i[0], i[1]))
