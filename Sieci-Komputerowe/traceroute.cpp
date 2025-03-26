@@ -155,7 +155,8 @@ void receive(uint16_t sended_sum[3], uint16_t sended_seq[3], int sock_fd, struct
                 struct sockaddr_in sender;
                 socklen_t sender_len = sizeof(sender);
                 uint8_t buffer[IP_MAXPACKET];
-                
+
+                // (struct sockaddr*)&sender - sender addres stucture
                 ssize_t packet_len = recvfrom(sock_fd, buffer, IP_MAXPACKET, 0, (struct sockaddr*)&sender, &sender_len);
 
                 if(packet_len < 0){
@@ -192,6 +193,7 @@ void receive(uint16_t sended_sum[3], uint16_t sended_seq[3], int sock_fd, struct
                     received += 1;
                     reply_times_sum += RECEIVE_TIME - START_TIME;
                     char ip_str[20];
+                    // bits to str converce
                     inet_ntop(AF_INET, &(sender.sin_addr), ip_str, sizeof(ip_str));    
                     ip_reply.insert(ip_str);
                     achived_destination = std::string(ip) == ip_str;
